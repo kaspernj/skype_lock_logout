@@ -5,14 +5,22 @@ class Skype_lock_logout
   #Spawns the object, starts to listen and blocks the thread.
   def self.start
     loop do
+      print "Starting Skype-lock-logout.\n"
+      
       begin
         Skype_lock_logout.new.listen
       rescue => e
-        puts e.inspect
-        puts e.backtrace
+        if e.is_a?(DBus::Error) and e.message == "The name com.Skype.API was not provided by any .service files"
+          puts "Skype isnt running - trying again in 10 secs."
+        elsif e.is_a?(RuntimeError) and e.message == "Skype has stopped running."
+          puts "Skype stopped running - trying to reconnect in 10 secs."
+        else
+          puts e.inspect
+          puts e.backtrace
+        end
       end
       
-      sleep 1
+      sleep 10
     end
   end
   
@@ -21,8 +29,8 @@ class Skype_lock_logout
     @bus = DBus::SessionBus.instance
     
     #Spawn Skype-DBus objects.
-    @skype_service = @bus.service("com.Skype.API")
-    @skype_obj = @skype_service.object("/com/Skype")
+    skype_service = @bus.service("com.Skype.API")
+    @skype_obj = skype_service.object("/com/Skype")
     @skype_obj.introspect
     @skype_obj.default_iface = "com.Skype.API"
     
@@ -30,13 +38,22 @@ class Skype_lock_logout
     res = @skype_obj.Invoke("NAME SkypeLockLogout").first
     raise "The application wasnt allowed use Skype: '#{res}'." if res != "OK"
     
-    #Set the protocol to 8 - could only find documentation on this protocol.
+    #Set the protocol to 8 - could only find documentation on this protocol. Are there any better ones???
     res = @skype_obj.Invoke("PROTOCOL 8").first
     raise "Couldnt set the protocol for Skype: '#{res}'." if res != "PROTOCOL 8"
     
     #Listen for lock-events on the screensaver.
     mr = DBus::MatchRule.new.from_s("interface='org.gnome.ScreenSaver',member='ActiveChanged'")
     @bus.add_match(mr, &self.method(:gnome_screensaver_status))
+    
+    #Listen for when Skype stops running to quit listening.
+    mr = DBus::MatchRule.new.from_s("path='/org/freedesktop/DBus',interface='org.freedesktop.DBus',member='NameOwnerChanged'")
+    @bus.add_match(mr, &self.method(:name_owner_changed))
+  end
+  
+  #This method is being called on 'NameOwnerChanged', which helps us stop the app when Skype stops (a reconnect is needed after Skype restarts).
+  def name_owner_changed(msg)
+    raise "Skype has stopped running." if msg.params.first == "com.Skype.API" and msg.params[1].to_s.match(/^:\d\.\d+$/)
   end
   
   #This method is called, when the Gnome-Screensaver locks or unlocks.
