@@ -1,7 +1,8 @@
 require File.expand_path(File.dirname(__FILE__) + '/spec_helper')
 
 describe "SkypeLockLogout" do
-  it "fails" do
-    fail "hey buddy, you should probably rename this file and start specing for real"
+  it "should work" do
+    sll = Skype_lock_logout.new
+    sll.listen
   end
 end
