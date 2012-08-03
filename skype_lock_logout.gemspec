@@ -26,6 +26,7 @@ Gem::Specification.new do |s|
     "Rakefile",
     "VERSION",
     "lib/skype_lock_logout.rb",
+    "skype_lock_logout.gemspec",
     "spec/skype_lock_logout_spec.rb",
     "spec/spec_helper.rb"
   ]
